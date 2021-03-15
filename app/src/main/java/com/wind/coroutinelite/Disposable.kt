@@ -18,3 +18,11 @@ class CompletionHandlerDisposable<T>(
     }
 
 }
+
+class CancellationHandlerDisposable(val job: Job,
+val onCancel: OnCancel):Disposable{
+    override fun dispose() {
+       job.remove(this)
+    }
+
+}

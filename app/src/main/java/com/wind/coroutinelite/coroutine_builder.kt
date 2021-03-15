@@ -3,8 +3,10 @@ package com.wind.coroutinelite
 import kotlin.coroutines.ContinuationInterceptor
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
+import kotlin.coroutines.intrinsics.suspendCoroutineUninterceptedOrReturn
 import kotlin.coroutines.startCoroutine
 
+import kotlin.coroutines.intrinsics.intercepted
 /**
  *
  *Created By wind
@@ -37,4 +39,13 @@ fun newCoroutineContext(context: CoroutineContext): CoroutineContext {
     ) {
         combined + Dispatchers.Default
     } else combined
+}
+
+suspend inline fun <T> suspendCancellableCoroutine(
+    crossinline block:(CancellableContinuation<T>)->Unit
+):T = suspendCoroutineUninterceptedOrReturn{  continuation ->
+
+    val cancellable=CancellableContinuation(continuation.intercepted())
+    block(cancellable)
+    cancellable.getResult()
 }

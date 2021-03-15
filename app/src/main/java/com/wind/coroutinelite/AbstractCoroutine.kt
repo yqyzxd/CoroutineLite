@@ -32,7 +32,21 @@ abstract class AbstractCoroutine<T>(context: CoroutineContext) : Job, Continuati
         }
 
     override fun invokeOnCancel(onCancel: OnCancel): Disposable {
-        TODO("Not yet implemented")
+        val disposable=CancellationHandlerDisposable(this,onCancel)
+        val newState=state.updateAndGet{
+            prev->
+            when(prev){
+                is CoroutineState.Incomplete->{
+                    CoroutineState.Incomplete().from(prev).with(disposable)
+                }
+                is CoroutineState.Cancelling,
+                    is CoroutineState.Complete<*> ->prev
+            }
+        }
+        (newState as? CoroutineState.Cancelling)?.let {
+            onCancel()
+        }
+        return disposable
     }
 
     override fun invokeOnCompleted(onCompleted: OnCompleted): Disposable {
@@ -41,7 +55,7 @@ abstract class AbstractCoroutine<T>(context: CoroutineContext) : Job, Continuati
         }
     }
 
-     fun doOnCompleted(block: (Result<T>) -> Unit): Disposable {
+    fun doOnCompleted(block: (Result<T>) -> Unit): Disposable {
         val disposable = CompletionHandlerDisposable(this, block)
 
         val newState = state.getAndUpdate {
@@ -70,25 +84,36 @@ abstract class AbstractCoroutine<T>(context: CoroutineContext) : Job, Continuati
     }
 
     override suspend fun join() {
-       when(state.get()){
+        when (state.get()) {
 
-           is CoroutineState.Incomplete,
-               is CoroutineState.Cancelling -> return joinSuspend()
-           is CoroutineState.Complete<*> -> return
-       }
+            is CoroutineState.Incomplete,
+            is CoroutineState.Cancelling -> return joinSuspend()
+            is CoroutineState.Complete<*> -> return
+        }
     }
 
-    private suspend fun joinSuspend()= suspendCoroutine<Unit> {
-        continuation ->
-        doOnCompleted {
-            result ->
+    private suspend fun joinSuspend() = suspendCoroutine<Unit> { continuation ->
+        doOnCompleted { result ->
             continuation.resume(Unit)
         }
 
     }
 
     override fun cancel() {
-        TODO("Not yet implemented")
+        val prevState = state.getAndUpdate { prev ->
+            when (prev) {
+                is CoroutineState.Incomplete -> {
+                    CoroutineState.Cancelling()
+                }
+                is CoroutineState.Cancelling,
+                is CoroutineState.Complete<*> -> prev
+            }
+        }
+        if (prevState is CoroutineState.Incomplete){
+            prevState.notifyCancellation()
+            prevState.clear()
+        }
+
     }
 
     override fun remove(disposable: Disposable) {
@@ -112,11 +137,11 @@ abstract class AbstractCoroutine<T>(context: CoroutineContext) : Job, Continuati
 
     override fun resumeWith(result: Result<T>) {
 
-        val newState=state.updateAndGet { prev ->
+        val newState = state.updateAndGet { prev ->
             when (prev) {
                 is CoroutineState.Cancelling,
                 is CoroutineState.Incomplete -> {
-                    CoroutineState.Complete(result.getOrNull(),result.exceptionOrNull()).from(prev)
+                    CoroutineState.Complete(result.getOrNull(), result.exceptionOrNull()).from(prev)
                 }
                 is CoroutineState.Complete<*> -> {
                     throw IllegalStateException("Aleady completed")

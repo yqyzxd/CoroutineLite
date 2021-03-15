@@ -20,11 +20,29 @@ interface Job :CoroutineContext.Element{
 
     val isActive:Boolean
 
+    /**
+     * 注册取消回调
+     */
     fun invokeOnCancel(onCancel:OnCancel):Disposable
+
+    /**
+     * 注册完成回调
+     */
     fun invokeOnCompleted(onCompleted:OnCompleted):Disposable
 
+    /**
+     * 等待协程完成
+     */
     suspend fun join()
+
+    /**
+     * 取消协程
+     */
     fun cancel()
+
+    /**
+     * 移除回调
+     */
     fun remove(disposable: Disposable)
 
 }
